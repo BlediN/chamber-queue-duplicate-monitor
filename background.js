@@ -7,6 +7,7 @@ const RELOAD_ALARM = 'reload-chamber-queue';
 const QUEUE_URL_PATTERNS = chrome.runtime.getManifest().content_scripts.flatMap((script) => script.matches);
 const DUPLICATE_THRESHOLD = 2;
 let scanInProgress = false;
+let reloadInProgress = false;
 
 async function getSettings() {
   return chrome.storage.local.get({
@@ -232,20 +233,31 @@ async function isAutoCleanupActiveInTab(tabId) {
 }
 
 async function reloadQueueTabWhenIdle() {
-  const settings = await getSettings();
-  if (settings.monitoringEnabled === false || scanInProgress) return;
-
-  const tabs = await getQueueTabs();
-  if (!tabs.length) return;
-
-  const queueTab = tabs[0];
-  if (queueTab.status === 'loading') return;
-
+  if (reloadInProgress) return;
+  reloadInProgress = true;
   try {
-    if (await isAutoCleanupActiveInTab(queueTab.id)) return;
-    await chrome.tabs.reload(queueTab.id);
+    while (true) {
+      const settings = await getSettings();
+      if (settings.monitoringEnabled === false) return;
+
+      const tabs = await getQueueTabs();
+      if (!tabs.length) return;
+      const queueTab = tabs[0];
+      if (queueTab.status === 'loading') return;
+
+      // An enabled toggle is not a busy state. Wait only for work that is
+      // actually running, then carry out this reload without losing the tick.
+      if (scanInProgress || await isAutoCleanupActiveInTab(queueTab.id)) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
+      await chrome.tabs.reload(queueTab.id);
+      return;
+    }
   } catch (error) {
     console.warn('Could not reload the Chamber Queue tab:', error);
+  } finally {
+    reloadInProgress = false;
   }
 }
 
@@ -290,7 +302,7 @@ async function recordScanStatus(ok, details = {}) {
 }
 
 async function scanFreshQueuePage() {
-  if (scanInProgress) return;
+  if (scanInProgress || reloadInProgress) return;
   scanInProgress = true;
   try {
     await runQueueScan();

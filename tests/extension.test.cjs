@@ -65,7 +65,10 @@ async function setup(titles = [], options = {}) {
     },
     document: { querySelector: (selector) => selector === '#result_list'
       ? (options.missingLiveTable ? null : table) : (options.missingButton ? null : button) },
-    fetch: async () => ({ ok: true, status: 200, url: queueUrl, text: async () => '<html></html>' }),
+    fetch: async () => {
+      await options.beforeFetch?.();
+      return { ok: true, status: 200, url: queueUrl, text: async () => '<html></html>' };
+    },
     DOMParser: class {
       parseFromString() { return { querySelector: () => options.missingFreshTable ? null : freshTable }; }
     },
@@ -96,7 +99,7 @@ async function setup(titles = [], options = {}) {
       async clear() {},
       async create(id) { log.push(`notification:${id}`); options.onNotification?.(id, local); }
     },
-    alarms: { create() {}, onAlarm: event() },
+    alarms: { create(name, settings) { log.push(`alarm:${name}:${settings.periodInMinutes}`); }, onAlarm: event() },
     tabs: {
       onUpdated: event(),
       async query({ url }) {
@@ -114,13 +117,21 @@ async function setup(titles = [], options = {}) {
       }
     }
   };
-  const context = vm.createContext({ chrome, console: { warn() {} }, setTimeout });
+  const context = vm.createContext({
+    chrome, console: { warn() {} },
+    setTimeout(callback, delay) {
+      log.push(`reload-wait:${delay}`);
+      options.onReloadWait?.(page.window, log, local);
+      return setTimeout(callback, 0);
+    }
+  });
   vm.runInContext(background, context);
   await settle();
+  const alarms = log.filter((entry) => entry.startsWith('alarm:'));
   log.length = 0;
   Object.assign(local, { monitoringEnabled: true, autoRemoveEnabled: true });
   return {
-    log, rows, local, page, button, chrome,
+    log, rows, local, page, button, chrome, alarms,
     scan: () => vm.runInContext('scanFreshQueuePage()', context),
     cleanup: () => vm.runInContext('executeAutoCleanupInTab(7)', context),
     reload: () => vm.runInContext('reloadQueueTabWhenIdle()', context),
@@ -288,14 +299,51 @@ test('stale live queue reloads when fresh server results have duplicates', async
 
 test('reloads the queue tab every minute when cleanup is idle', async () => {
   const app = await setup(['A']);
+  assert.equal(app.local.monitoringEnabled, true);
+  assert.equal(app.local.autoRemoveEnabled, true);
+  assert.ok(app.alarms.includes('alarm:reload-chamber-queue:1'));
   await app.reload();
   assert.ok(app.log.includes('reload:7'));
 });
 
-test('skips the timed reload while cleanup is active', async () => {
-  const app = await setup(['A']);
+test('timed reload waits for active cleanup and runs after it finishes', async () => {
+  const app = await setup(['A'], {
+    onReloadWait(window, log) {
+      assert.ok(!log.includes('reload:7'));
+      window.__chamberQueueAutoRemoving = false;
+    }
+  });
   app.page.window.__chamberQueueAutoRemoving = true;
   await app.reload();
+  assert.ok(app.log.includes('reload-wait:1000'));
+  assert.equal(app.log.filter((entry) => entry === 'reload:7').length, 1);
+});
+
+test('timed reload waits for a scan including its duplicate cleanup', async () => {
+  let releaseFetch;
+  const fetchGate = new Promise((resolve) => { releaseFetch = resolve; });
+  const app = await setup(['A', 'A'], {
+    beforeFetch: () => fetchGate,
+    onReloadWait(_window, log) {
+      assert.ok(!log.includes('reload:7'));
+      releaseFetch();
+    }
+  });
+  const scan = app.scan();
+  await settle();
+  await Promise.all([scan, app.reload(), app.reload()]);
+  assert.ok(app.log.includes('reload-wait:1000'));
+  assert.ok(app.log.indexOf('remove') < app.log.indexOf('reload:7'));
+  assert.equal(app.log.filter((entry) => entry === 'reload:7').length, 1);
+});
+
+test('turning monitoring off cancels a waiting reload', async () => {
+  const app = await setup(['A'], {
+    onReloadWait(_window, _log, local) { local.monitoringEnabled = false; }
+  });
+  app.page.window.__chamberQueueAutoRemoving = true;
+  await app.reload();
+  assert.ok(app.log.includes('reload-wait:1000'));
   assert.ok(!app.log.includes('reload:7'));
 });
 

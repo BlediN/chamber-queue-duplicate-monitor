@@ -41,9 +41,10 @@ The extension performs a fresh server-side queue check approximately every 30 se
 It can continue while another tab is selected or Chrome is minimized.
 
 When monitoring is enabled, the queue tab is also automatically reloaded every
-minute. A reload is skipped while a background scan is running, while the tab
-is already loading, or while automatic cleanup is actively selecting/submitting
-duplicates.
+minute. If a background scan or automatic cleanup is actively running, the
+reload waits for that work to finish and then runs. Leaving Queue Monitor and
+Auto Remove ON does not delay a reload by itself. A reload is skipped while
+the tab is already loading or monitoring is turned off.
 
 If the fresh server response contains duplicates but the background tab's DOM is stale, the extension reloads that queue tab.
 After the reload, it keeps the first occurrence and removes the later duplicates.
@@ -79,7 +80,7 @@ Fixes in 1.4.4
 Fixes in 1.5.0
 --------------
 - Reloads the queue tab automatically every minute when monitoring is enabled.
-- Skips the timed reload while cleanup or another scan is active.
+- Waits for active cleanup or a scan to finish before the timed reload.
 
 Fixes in 1.4.3
 --------------
