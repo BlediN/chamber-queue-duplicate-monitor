@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Chamber Queue Duplicate Monitor",
+  "version": "1.4.4",
+  "description": "Monitors the Memex chamber queue, detects duplicate Program Titles, and can automatically remove later duplicates while keeping the first entry.",
+  "permissions": [
+    "notifications",
+    "storage",
+    "alarms",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://10.0.61.174/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://10.0.61.174/admin/memex/chamberqueueitem/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Chamber Queue Duplicate Monitor",
+    "default_popup": "popup.html"
+  }
+}

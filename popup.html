@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Queue Monitor</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="popup">
+    <div class="row">
+      <div class="label-group">
+        <div class="title">Queue Monitor</div>
+        <div id="monitorStatus" class="status">On</div>
+      </div>
+      <label class="switch" aria-label="Turn queue monitoring on or off">
+        <input id="monitorToggle" type="checkbox">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="row">
+      <div class="label-group">
+        <div class="title">Auto Remove</div>
+        <div id="removeStatus" class="status">Off</div>
+      </div>
+      <label class="switch" aria-label="Automatically remove later duplicate queue entries">
+        <input id="removeToggle" type="checkbox">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div id="scanStatus" class="hint" role="status">Waiting for a queue scan.</div>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
