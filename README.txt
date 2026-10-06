@@ -1,4 +1,4 @@
-Chamber Queue Duplicate Monitor - v1.4.4
+Chamber Queue Duplicate Monitor - v1.5.0
 ========================================
 
 Target page
@@ -40,6 +40,11 @@ Background operation
 The extension performs a fresh server-side queue check approximately every 30 seconds while the queue tab remains open.
 It can continue while another tab is selected or Chrome is minimized.
 
+When monitoring is enabled, the queue tab is also automatically reloaded every
+minute. A reload is skipped while a background scan is running, while the tab
+is already loading, or while automatic cleanup is actively selecting/submitting
+duplicates.
+
 If the fresh server response contains duplicates but the background tab's DOM is stale, the extension reloads that queue tab.
 After the reload, it keeps the first occurrence and removes the later duplicates.
 
@@ -70,6 +75,11 @@ Fixes in 1.4.4
 - Removes the cleanup success notification; the popup scan status still reports submitted duplicates.
 - Closes the extension popup after enabling Auto Remove so it stays out of the way.
 - One-second action delays and the native removal confirmation handler remain enabled.
+
+Fixes in 1.5.0
+--------------
+- Reloads the queue tab automatically every minute when monitoring is enabled.
+- Skips the timed reload while cleanup or another scan is active.
 
 Fixes in 1.4.3
 --------------

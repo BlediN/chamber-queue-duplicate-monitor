@@ -2,6 +2,7 @@
 
 const DUPLICATE_NOTIFICATION_ID = 'chamber-queue-duplicate-warning';
 const SCAN_ALARM = 'scan-chamber-queue';
+const RELOAD_ALARM = 'reload-chamber-queue';
 // Share the page configuration used for content-script injection.
 const QUEUE_URL_PATTERNS = chrome.runtime.getManifest().content_scripts.flatMap((script) => script.matches);
 const DUPLICATE_THRESHOLD = 2;
@@ -16,6 +17,7 @@ async function getSettings() {
 
 function ensureScanAlarm() {
   chrome.alarms.create(SCAN_ALARM, { periodInMinutes: 0.5 });
+  chrome.alarms.create(RELOAD_ALARM, { periodInMinutes: 1 });
 }
 
 async function getQueueTabs() {
@@ -220,6 +222,33 @@ async function executeAutoCleanupInTab(tabId) {
   return results?.[0]?.result || { clicked: false, reason: 'no-result' };
 }
 
+async function isAutoCleanupActiveInTab(tabId) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    func: () => window.__chamberQueueAutoRemoving === true
+  });
+  return results?.[0]?.result === true;
+}
+
+async function reloadQueueTabWhenIdle() {
+  const settings = await getSettings();
+  if (settings.monitoringEnabled === false || scanInProgress) return;
+
+  const tabs = await getQueueTabs();
+  if (!tabs.length) return;
+
+  const queueTab = tabs[0];
+  if (queueTab.status === 'loading') return;
+
+  try {
+    if (await isAutoCleanupActiveInTab(queueTab.id)) return;
+    await chrome.tabs.reload(queueTab.id);
+  } catch (error) {
+    console.warn('Could not reload the Chamber Queue tab:', error);
+  }
+}
+
 async function updateDuplicateState(duplicates) {
   const signature = makeSignature(duplicates);
   const session = await chrome.storage.session.get({ lastDuplicateSignature: '' });
@@ -369,6 +398,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === SCAN_ALARM) scanFreshQueuePage().catch(console.warn);
+  if (alarm.name === RELOAD_ALARM) reloadQueueTabWhenIdle().catch(console.warn);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {

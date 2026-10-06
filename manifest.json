@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Chamber Queue Duplicate Monitor",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "description": "Monitors the Memex chamber queue, detects duplicate Program Titles, and can automatically remove later duplicates while keeping the first entry.",
   "permissions": [
     "notifications",

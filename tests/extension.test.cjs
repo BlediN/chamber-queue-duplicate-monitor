@@ -122,7 +122,9 @@ async function setup(titles = [], options = {}) {
   return {
     log, rows, local, page, button, chrome,
     scan: () => vm.runInContext('scanFreshQueuePage()', context),
-    cleanup: () => vm.runInContext('executeAutoCleanupInTab(7)', context)
+    cleanup: () => vm.runInContext('executeAutoCleanupInTab(7)', context),
+    reload: () => vm.runInContext('reloadQueueTabWhenIdle()', context),
+    triggerAlarm: (name) => chrome.alarms.onAlarm.listeners.forEach((listener) => listener({ name }))
   };
 }
 
@@ -282,6 +284,26 @@ test('stale live queue reloads when fresh server results have duplicates', async
   await app.scan();
   assert.ok(app.log.includes('reload:7'));
   assert.ok(!app.log.includes('remove'));
+});
+
+test('reloads the queue tab every minute when cleanup is idle', async () => {
+  const app = await setup(['A']);
+  await app.reload();
+  assert.ok(app.log.includes('reload:7'));
+});
+
+test('skips the timed reload while cleanup is active', async () => {
+  const app = await setup(['A']);
+  app.page.window.__chamberQueueAutoRemoving = true;
+  await app.reload();
+  assert.ok(!app.log.includes('reload:7'));
+});
+
+test('timed reload alarm invokes the idle reload routine', async () => {
+  const app = await setup(['A']);
+  app.triggerAlarm('reload-chamber-queue');
+  await settle();
+  assert.ok(app.log.includes('reload:7'));
 });
 
 test('overlapping scan requests submit only once', async () => {
